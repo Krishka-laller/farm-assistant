@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+@theme inline {
+  --color-green-900: var(--color-green-900);
+  --color-green-700: var(--color-green-700);
+  --color-green-500: var(--color-green-500);
+  --color-green-100: var(--color-green-100);
+  --color-cream: var(--color-cream);
+  --color-cream-dark: var(--color-cream-dark);
+  --color-brown-900: var(--color-brown-900);
+  --color-brown-700: var(--color-brown-700);
+  --color-brown-300: var(--color-brown-300);
+  --color-yellow-700: var(--color-yellow-700);
+  --color-yellow-500: var(--color-yellow-500);
+  --color-turmeric: var(--color-yellow-500);
+}
+
+body {
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-latin), var(--font-devanagari), var(--font-gurmukhi), system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, select, input, textarea {
+  font-family: inherit;
+}
+
+/* Touch targets at least 44px */
+button, select, input, a {
+  min-height: 44px;
+}
+
+/* Transitions: strictly 150-200ms, no animations */
+button, a, input, select {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+/* Visible focus rings for keyboard accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-green-700);
+  outline-offset: 2px;
+}
+

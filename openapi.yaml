@@ -1,0 +1,751 @@
+openapi: 3.1.0
+info:
+  title: Farm Decision Assistant API
+  version: 1.0.0
+  description: >
+    Backend API for the Multilingual AI Farm Decision Assistant.
+    All endpoints return consistent error shapes and support
+    language-aware responses.
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.example.com
+    description: Production (replace with real domain)
+
+paths:
+  /api/chat:
+    post:
+      operationId: chatWithAssistant
+      summary: Chat with the AI farming assistant
+      description: >
+        Send a message in any supported language and receive
+        farming advice. The assistant answers in the same language
+        as the user's message.
+      tags: [Chat]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Successful response from the assistant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/crop/recommend:
+    post:
+      operationId: recommendCrop
+      summary: Get crop recommendations
+      description: >
+        Recommends suitable crops based on location, soil type,
+        current season, and water availability.
+      tags: [Crop]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CropRecommendRequest'
+      responses:
+        '200':
+          description: List of recommended crops with reasoning
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CropRecommendResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/disease/identify:
+    post:
+      operationId: identifyDisease
+      summary: Identify plant disease from a leaf photo
+      description: >
+        Upload a leaf photo (JPEG or PNG, max 5 MB) to identify
+        potential disease and receive treatment steps.
+        Image must be compressed client-side before upload.
+      tags: [Disease]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DiseaseIdentifyRequest'
+      responses:
+        '200':
+          description: Disease identification results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiseaseIdentifyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          description: Image file too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/weather:
+    get:
+      operationId: getWeather
+      summary: Get weather forecast and farming advice
+      description: >
+        Fetches current and 7-day forecast from Open-Meteo
+        and generates farming advice (sowing, irrigation,
+        spraying windows) using AI.
+      tags: [Weather]
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            minimum: 6.0
+            maximum: 37.0
+          description: Latitude (Indian subcontinent range)
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            minimum: 68.0
+            maximum: 97.5
+          description: Longitude (Indian subcontinent range)
+        - name: lang
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LanguageCode'
+          description: Language for the farming advice text
+      responses:
+        '200':
+          description: Weather data with farming advice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeatherResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/mandi/prices:
+    get:
+      operationId: getMandiPrices
+      summary: Look up mandi commodity prices
+      description: >
+        Fetches commodity prices from Agmarknet (data.gov.in).
+        Shows source name and last updated time.
+      tags: [Mandi]
+      parameters:
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 50
+          description: State name (e.g. "Punjab", "Maharashtra")
+        - name: district
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 50
+          description: District name to narrow results
+        - name: commodity
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 50
+          description: Commodity name (e.g. "Wheat", "Rice")
+        - name: lang
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/LanguageCode'
+          description: Language for response labels
+      responses:
+        '200':
+          description: Mandi price data with source attribution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MandiPriceResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+  /api/fertilizer/guide:
+    post:
+      operationId: getFertilizerGuide
+      summary: Get fertilizer and pesticide guidance
+      description: >
+        Provides fertilizer or pesticide recommendations with
+        safe dosage warnings. Always recommends contacting
+        local Krishi Vigyan Kendra for serious cases.
+      tags: [Fertilizer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FertilizerGuideRequest'
+      responses:
+        '200':
+          description: Fertilizer or pesticide guidance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FertilizerGuideResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
+
+components:
+  schemas:
+    LanguageCode:
+      type: string
+      enum: [en, hi, pa, mr, gu, ta, te, bn]
+      default: en
+      description: >
+        Supported language codes.
+        en: English, hi: Hindi, pa: Punjabi, mr: Marathi,
+        gu: Gujarati, ta: Tamil, te: Telugu, bn: Bengali.
+
+    SoilType:
+      type: string
+      enum:
+        - alluvial
+        - black_cotton
+        - red
+        - laterite
+        - sandy
+        - clayey
+        - loamy
+        - saline
+      description: Common soil types found in India
+
+    Season:
+      type: string
+      enum:
+        - kharif
+        - rabi
+        - zaid
+      description: Indian agricultural seasons
+
+    WaterAvailability:
+      type: string
+      enum:
+        - irrigated
+        - rainfed
+        - limited
+      description: Water availability for farming
+
+    # ---- Chat ----
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+          maxLength: 2000
+
+    ChatRequest:
+      type: object
+      required: [message, lang]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: The user's message text
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          maxItems: 20
+          description: Previous conversation messages for context
+        location:
+          type: object
+          properties:
+            lat:
+              type: number
+              format: float
+            lon:
+              type: number
+              format: float
+          description: Optional user location for contextual answers
+
+    ChatResponse:
+      type: object
+      required: [reply, lang, disclaimer]
+      properties:
+        reply:
+          type: string
+          description: The assistant's response in the user's language
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        disclaimer:
+          type: string
+          description: Advisory note that advice is informational only
+        sources:
+          type: array
+          items:
+            type: string
+          description: Data sources referenced in the answer
+
+    # ---- Crop ----
+
+    CropRecommendRequest:
+      type: object
+      required: [lat, lon, soil_type, season, water_availability, lang]
+      properties:
+        lat:
+          type: number
+          format: float
+          minimum: 6.0
+          maximum: 37.0
+        lon:
+          type: number
+          format: float
+          minimum: 68.0
+          maximum: 97.5
+        soil_type:
+          $ref: '#/components/schemas/SoilType'
+        season:
+          $ref: '#/components/schemas/Season'
+        water_availability:
+          $ref: '#/components/schemas/WaterAvailability'
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+
+    CropRecommendation:
+      type: object
+      required: [crop_name, suitability_score, reasoning]
+      properties:
+        crop_name:
+          type: string
+          description: Name of the recommended crop
+        suitability_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: How suitable this crop is (0 to 1)
+        reasoning:
+          type: string
+          description: Explanation in the user's language
+        expected_duration_days:
+          type: integer
+          description: Approximate crop duration in days
+        water_requirement:
+          type: string
+          description: Water requirement description
+
+    CropRecommendResponse:
+      type: object
+      required: [recommendations, lang, disclaimer]
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CropRecommendation'
+          minItems: 0
+          maxItems: 5
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        disclaimer:
+          type: string
+        weather_summary:
+          type: string
+          description: Current weather context used for the recommendation
+
+    # ---- Disease ----
+
+    DiseaseIdentifyRequest:
+      type: object
+      required: [image, lang]
+      properties:
+        image:
+          type: string
+          format: binary
+          description: Leaf photo (JPEG or PNG, max 5 MB)
+        crop_name:
+          type: string
+          maxLength: 100
+          description: Optional crop name for better accuracy
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+
+    TreatmentStep:
+      type: object
+      required: [step_number, instruction]
+      properties:
+        step_number:
+          type: integer
+        instruction:
+          type: string
+        safety_warning:
+          type: string
+          description: Safety precaution for this step, if any
+
+    DiseaseIdentifyResponse:
+      type: object
+      required: [identified, lang, disclaimer]
+      properties:
+        identified:
+          type: boolean
+          description: Whether a disease was identified
+        disease_name:
+          type: string
+          description: Name of the identified disease
+        confidence:
+          type: string
+          enum: [high, medium, low]
+          description: Confidence level of identification
+        description:
+          type: string
+          description: Description of the disease
+        treatment_steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/TreatmentStep'
+        prevention_tips:
+          type: array
+          items:
+            type: string
+        refer_to_expert:
+          type: boolean
+          description: Whether to recommend consulting a KVK expert
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        disclaimer:
+          type: string
+
+    # ---- Weather ----
+
+    DailyForecast:
+      type: object
+      required:
+        - date
+        - temp_max_c
+        - temp_min_c
+        - precipitation_mm
+        - humidity_percent
+      properties:
+        date:
+          type: string
+          format: date
+        temp_max_c:
+          type: number
+          format: float
+        temp_min_c:
+          type: number
+          format: float
+        precipitation_mm:
+          type: number
+          format: float
+        humidity_percent:
+          type: number
+          format: float
+        wind_speed_kmh:
+          type: number
+          format: float
+        weather_code:
+          type: integer
+          description: WMO weather interpretation code
+        weather_description:
+          type: string
+
+    FarmingAdvice:
+      type: object
+      required: [category, advice]
+      properties:
+        category:
+          type: string
+          enum: [sowing, irrigation, spraying, harvesting, general]
+        advice:
+          type: string
+          description: Actionable advice in the user's language
+        urgency:
+          type: string
+          enum: [low, medium, high]
+
+    WeatherResponse:
+      type: object
+      required: [current, forecast, farming_advice, source, last_updated, lang, disclaimer]
+      properties:
+        current:
+          type: object
+          required: [temp_c, humidity_percent, precipitation_mm]
+          properties:
+            temp_c:
+              type: number
+              format: float
+            humidity_percent:
+              type: number
+              format: float
+            precipitation_mm:
+              type: number
+              format: float
+            wind_speed_kmh:
+              type: number
+              format: float
+            weather_description:
+              type: string
+        forecast:
+          type: array
+          items:
+            $ref: '#/components/schemas/DailyForecast'
+          maxItems: 7
+        farming_advice:
+          type: array
+          items:
+            $ref: '#/components/schemas/FarmingAdvice'
+        source:
+          type: string
+          description: Data source name (e.g. "Open-Meteo")
+        last_updated:
+          type: string
+          format: date-time
+          description: When the data was last fetched
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        disclaimer:
+          type: string
+
+    # ---- Mandi ----
+
+    MandiPriceRecord:
+      type: object
+      required: [commodity, market, min_price, max_price, modal_price]
+      properties:
+        commodity:
+          type: string
+        variety:
+          type: string
+        market:
+          type: string
+          description: Mandi name
+        district:
+          type: string
+        state:
+          type: string
+        min_price:
+          type: number
+          format: float
+          description: Minimum price in INR per quintal
+        max_price:
+          type: number
+          format: float
+          description: Maximum price in INR per quintal
+        modal_price:
+          type: number
+          format: float
+          description: Modal (most common) price in INR per quintal
+        arrival_date:
+          type: string
+          format: date
+          description: Date of price reporting
+
+    MandiPriceResponse:
+      type: object
+      required: [records, source, last_updated, lang]
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/MandiPriceRecord'
+        total_count:
+          type: integer
+          description: Total records matching the query
+        source:
+          type: string
+          description: 'Agmarknet, data.gov.in'
+        last_updated:
+          type: string
+          format: date-time
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+
+    # ---- Fertilizer ----
+
+    FertilizerGuideRequest:
+      type: object
+      required: [crop_name, issue_description, lang]
+      properties:
+        crop_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        soil_type:
+          $ref: '#/components/schemas/SoilType'
+        issue_description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Description of the problem or growth stage
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+
+    DosageInfo:
+      type: object
+      required: [product_name, dosage, application_method]
+      properties:
+        product_name:
+          type: string
+        dosage:
+          type: string
+          description: Safe dosage with units
+        application_method:
+          type: string
+        safety_warnings:
+          type: array
+          items:
+            type: string
+        waiting_period_days:
+          type: integer
+          description: Days to wait before harvest after application
+
+    FertilizerGuideResponse:
+      type: object
+      required: [recommendations, lang, disclaimer]
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/DosageInfo'
+        general_advice:
+          type: string
+          description: General guidance in the user's language
+        refer_to_expert:
+          type: boolean
+          description: Whether to recommend consulting a KVK
+        lang:
+          $ref: '#/components/schemas/LanguageCode'
+        disclaimer:
+          type: string
+
+    # ---- Errors ----
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          enum:
+            - VALIDATION_ERROR
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+            - IMAGE_TOO_LARGE
+            - INVALID_IMAGE_TYPE
+            - UPSTREAM_API_FAILURE
+            - NOT_FOUND
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: VALIDATION_ERROR
+            message: "Invalid soil type. Must be one of: alluvial, black_cotton, red, laterite, sandy, clayey, loamy, saline."
+            details:
+              field: soil_type
+
+    RateLimitError:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: RATE_LIMITED
+            message: "Too many requests. Please wait before trying again."
+            details:
+              retry_after_seconds: 60
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: INTERNAL_ERROR
+            message: "Something went wrong. Please try again."
+
+    ServiceUnavailableError:
+      description: External service is unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: SERVICE_UNAVAILABLE
+            message: "Weather service is temporarily unavailable. Please try again later."
+            details:
+              service: "Open-Meteo"

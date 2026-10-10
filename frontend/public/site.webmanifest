@@ -1,0 +1,21 @@
+{
+  "name": "Farm Assistant",
+  "short_name": "Farm Assistant",
+  "description": "Multilingual AI Farm Decision Assistant for Indian Farmers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8f3",
+  "theme_color": "#1a3a2a",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
