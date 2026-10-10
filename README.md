@@ -168,10 +168,3 @@ npm run gen:api
 ## Data and privacy
 
 Chat text, crop and fertilizer inputs go to the LLM provider to produce an answer. Coordinates go to Open-Meteo, and state, district and commodity go to data.gov.in. The app stores only the selected language in the browser. See `/privacy` and `/terms` in the running app. These pages are a project draft and have not been reviewed by a lawyer.
-
-## License
-
-
-## Contact
-
-Krishka Laller, krishkalaller@gmail.com
