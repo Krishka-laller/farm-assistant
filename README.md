@@ -1,112 +1,170 @@
 # Multilingual AI Farm Decision Assistant
 
-A mobile-first web application designed to help Indian farmers make informed farming decisions. The platform provides localized agricultural advice across multiple Indian regional languages through conversational chat, weather advisories, market commodity prices, crop recommendations, leaf disease analysis, and fertilizer guidance.
+A web app for Indian farmers. Ask a farming question in Hindi, Punjabi or English and get an answer based on your local weather and mandi prices.
 
-## What the App Does
+Built as a B.Tech project by Krishka Laller.
 
-- Multilingual Chat: Conversational farming advice in Hindi, Punjabi, Tamil, Telugu, Marathi, Gujarati, Bengali, and English.
-- Crop Recommendation: Suggestions based on user coordinates, soil type, crop season, and water availability.
-- Disease Identification: Leaf image diagnosis and treatment suggestions.
-- Weather Advisory: Farming action advice (sowing, irrigation, spraying) based on forecast data.
-- Mandi Prices: Market commodity prices with modal rates and arrival dates across Indian states and districts.
-- Fertilizer Guidance: General safety practices, nutrient advice, and Krishi Vigyan Kendra (KVK) consultation prompts.
+> Advice from this app is informational only. It is not a replacement for expert advice. For serious crop loss or any chemical dosage, contact your local Krishi Vigyan Kendra (KVK).
 
-## Stateless Design
+## What it does
 
-The application follows a strictly stateless architecture:
-- No Database: The application does not include or connect to any database.
-- No Stored Chat History: Conversation history is maintained entirely within the client session and sent in request payloads. Nothing is persisted on the server.
-- No Stored Photos: Uploaded leaf images are validated, sanitized, and evaluated in memory. Files are not saved to server disk or persistent cloud buckets.
+| Feature | How it works | Data source |
+|---|---|---|
+| Chat assistant | Answers farming questions in the selected language | Groq LLM API |
+| Weather | Current conditions and a short forecast for a chosen district or your location | Open-Meteo |
+| Mandi prices | Daily wholesale prices by state, district and commodity | Agmarknet via data.gov.in |
+| Crop advice | Suggests crops from location, soil, season and water availability | Groq LLM API with live weather as context |
+| Fertilizer guidance | General guidance only, never specific doses or brands | Groq LLM API |
+| Disease photo check | Page and upload flow are built, the AI analysis is not enabled yet | Not available yet |
 
-## Data Sources
+Weather and mandi cards show the source name and the last updated time. If a data source fails, the app shows an honest error. It never shows dummy numbers.
 
-- Weather: Open-Meteo API (open-meteo.com) for real-time weather and forecast data.
-- Mandi Prices: Agmarknet dataset via data.gov.in official government API.
-- AI Reasoning: Google Gemini API for natural language assistance and vision-based image diagnosis.
-- Institutional Guidance: Krishi Vigyan Kendra (KVK) reference recommendations.
+## Languages
 
-## Environment Variables
+The interface is available in English, Hindi and Punjabi. The backend accepts eight language codes (en, hi, pa, mr, gu, ta, te, bn), so the remaining UI translations can be added without API changes.
 
-Only variable names are listed below. Do not commit secret values to version control.
+## Tech stack
 
-### Backend (.env)
+- Backend: FastAPI (Python), Pydantic, httpx, slowapi for rate limiting, Pillow for image handling, cachetools for caching
+- Frontend: Next.js (App Router), TypeScript, Tailwind CSS, Lucide icons
+- API contract: the backend exports `openapi.json`, and the frontend client types are generated from it with `openapi-typescript`
+- Tests: pytest with external APIs mocked
 
-- GEMINI_API_KEY
-- DATA_GOV_IN_API_KEY
-- ALLOWED_ORIGINS
-- MAX_IMAGE_SIZE_MB
-- RATE_LIMIT_DEFAULT
-- RATE_LIMIT_UPLOAD
-- RATE_LIMIT_CHAT
+## Design decisions
 
-### Frontend (.env.local)
+- **Stateless.** There is no database. Chat history lives only in the browser tab. Chat text and photos are not stored by this app.
+- **No invented data.** Prices and weather come from real APIs only. When data is missing, the app says so.
+- **No chemical doses.** The assistant gives general guidance and tells users to follow the product label and contact the local KVK.
+- **One error shape.** Every API error returns `{ code, message, details }`.
+- **LLM calls only on the backend.** API keys never reach the browser.
 
-- NEXT_PUBLIC_API_URL
-- NEXT_PUBLIC_SITE_URL
+## Project structure
 
-## How to Run
+```
+farm-assistant/
+  backend/
+    app/
+      api/routes/      chat, crop, disease, fertilizer, location, mandi, weather
+      services/        LLM wrapper, weather, mandi, geocoding, image handling
+      middleware/      rate limiting, error handler
+      models/          Pydantic schemas and error types
+    data/              location data (states and districts)
+    tests/
+    openapi.json
+    requirements.txt
+  frontend/
+    src/
+      app/             pages: chat, weather, mandi, crop, fertilizer, disease, privacy, terms
+      components/
+      i18n/            en, hi, pa translation files
+      lib/api-client/  generated API types and fetch wrapper
+  README.md
+```
 
-### Backend
+## Getting started
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+You need Python 3.12 or newer and Node.js 20 or newer.
 
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   ```
+### 1. Get API keys
 
-3. Activate the virtual environment:
-   - On Windows:
-     ```bash
-     .\venv\Scripts\activate
-     ```
-   - On Linux or macOS:
-     ```bash
-     source venv/bin/activate
-     ```
+- Groq: create a key at console.groq.com
+- data.gov.in: register and copy the key from My Account
 
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Open-Meteo needs no key.
 
-5. Configure environment variables in `.env` based on `.env.example`.
+### 2. Run the backend
 
-6. Run the FastAPI development server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+```
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-The backend server runs on `http://127.0.0.1:8000`.
+Copy `.env.example` to `.env` and fill in your keys:
 
-### Frontend
+```
+GROQ_API_KEY=
+DATA_GOV_IN_API_KEY=
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+Start the server:
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```
+uvicorn app.main:app --reload
+```
 
-3. Configure environment variables in `.env.local` based on `.env.example`.
+Interactive API docs are at `http://127.0.0.1:8000/docs`.
 
-4. Start the Next.js development server:
-   ```bash
-   npm run dev
-   ```
+### 3. Run the frontend
 
-The frontend application runs on `http://localhost:3000`.
+Open a second terminal:
 
-### API Client Generation
+```
+cd frontend
+npm install
+```
 
-To regenerate the frontend TypeScript API client from the backend OpenAPI schema:
-```bash
+Copy `.env.example` to `.env.local`:
+
+```
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+Start the app:
+
+```
+npm run dev
+```
+
+Open `http://localhost:3000`. Keep both terminals running.
+
+## API endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/chat` | Chat in the selected language |
+| POST | `/api/crop/recommend` | Crop suggestions |
+| POST | `/api/fertilizer/guide` | General fertilizer guidance |
+| POST | `/api/disease/identify` | Leaf photo analysis (not enabled yet) |
+| GET | `/api/weather` | Weather and forecast |
+| GET | `/api/mandi/prices` | Mandi prices |
+| GET | `/api/location/states` | States and districts |
+
+## Tests
+
+```
+cd backend
+venv\Scripts\activate
+pytest
+```
+
+After changing backend schemas, regenerate the frontend types:
+
+```
 cd frontend
 npm run gen:api
 ```
+
+## Known limitations
+
+- The disease photo analysis is not enabled with the current AI provider.
+- The farming advice list on the weather page is empty for now.
+- Crop and fertilizer answers are AI generated and are not checked against soil tests.
+- Voice input is not implemented.
+- Mandi data depends on data.gov.in, which can be slow or unavailable. Results are cached for one hour.
+- The Groq free tier has rate limits, and model names on the provider side can change.
+
+## Roadmap
+
+- Photo based disease identification with a vision capable model
+- Weather based farming advice
+- Marathi, Gujarati, Tamil, Telugu and Bengali interface
+- Voice input where the browser supports it
+- Deployment on a custom domain
+
+## Data and privacy
+
+Chat text, crop and fertilizer inputs go to the LLM provider to produce an answer. Coordinates go to Open-Meteo, and state, district and commodity go to data.gov.in. The app stores only the selected language in the browser. See `/privacy` and `/terms` in the running app. These pages are a project draft and have not been reviewed by a lawyer.
