@@ -4,11 +4,15 @@ Uses the free Open-Meteo API (no key required) to fetch current conditions
 and 7-day forecast for Indian coordinates.
 """
 
-import httpx
+import logging
 from datetime import datetime, timezone
+
+import httpx
 
 from app.models.errors import ServiceUnavailableError
 from app.models.schemas import CurrentWeather, DailyForecast
+
+logger = logging.getLogger(__name__)
 
 OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT_SECONDS = 10
@@ -38,12 +42,20 @@ WMO_CODES = {
     99: "Thunderstorm with heavy hail",
 }
 
+_UNAVAILABLE_MESSAGE = "Weather data is temporarily unavailable. Please try again later."
+
+
+def _daily_value(daily_data: dict, key: str, index: int, default=None):
+    values = daily_data.get(key) or []
+    if index < len(values) and values[index] is not None:
+        return values[index]
+    return default
+
 
 async def fetch_weather(lat: float, lon: float) -> dict:
     """Fetch current weather and 7-day forecast from Open-Meteo.
 
-    Returns raw structured data. The route handler adds farming advice
-    via the Gemini service.
+    Returns raw structured data. The route handler adds farming advice.
     """
     params = {
         "latitude": lat,
@@ -59,11 +71,18 @@ async def fetch_weather(lat: float, lon: float) -> dict:
             response = await client.get(OPEN_METEO_BASE, params=params)
             response.raise_for_status()
             data = response.json()
-    except (httpx.HTTPError, httpx.TimeoutException):
-        raise ServiceUnavailableError(
-            service="Open-Meteo",
-            message="Weather data is temporarily unavailable. Please try again later.",
-        )
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        # Open-Meteo explains errors in a short JSON "reason". No user data in it.
+        reason = exc.response.text[:200].replace("\n", " ")
+        logger.error("Weather API failed: HTTP %s, %s", status, reason)
+        raise ServiceUnavailableError(service="Open-Meteo", message=_UNAVAILABLE_MESSAGE)
+    except httpx.HTTPError as exc:
+        logger.error("Weather API failed: %s", type(exc).__name__)
+        raise ServiceUnavailableError(service="Open-Meteo", message=_UNAVAILABLE_MESSAGE)
+    except ValueError:
+        logger.error("Weather API failed: invalid JSON")
+        raise ServiceUnavailableError(service="Open-Meteo", message=_UNAVAILABLE_MESSAGE)
 
     # Parse current weather
     current_data = data.get("current", {})
@@ -82,15 +101,15 @@ async def fetch_weather(lat: float, lon: float) -> dict:
     forecast = []
     dates = daily_data.get("time", [])
     for i, date_str in enumerate(dates):
-        weather_code = (daily_data.get("weather_code") or [])[i] if daily_data.get("weather_code") else None
+        weather_code = _daily_value(daily_data, "weather_code", i)
         forecast.append(
             DailyForecast(
                 date=date_str,
-                temp_max_c=(daily_data.get("temperature_2m_max") or [])[i] if daily_data.get("temperature_2m_max") else 0,
-                temp_min_c=(daily_data.get("temperature_2m_min") or [])[i] if daily_data.get("temperature_2m_min") else 0,
-                precipitation_mm=(daily_data.get("precipitation_sum") or [])[i] if daily_data.get("precipitation_sum") else 0,
-                humidity_percent=(daily_data.get("relative_humidity_2m_mean") or [])[i] if daily_data.get("relative_humidity_2m_mean") else 0,
-                wind_speed_kmh=(daily_data.get("wind_speed_10m_max") or [])[i] if daily_data.get("wind_speed_10m_max") else None,
+                temp_max_c=_daily_value(daily_data, "temperature_2m_max", i, 0),
+                temp_min_c=_daily_value(daily_data, "temperature_2m_min", i, 0),
+                precipitation_mm=_daily_value(daily_data, "precipitation_sum", i, 0),
+                humidity_percent=_daily_value(daily_data, "relative_humidity_2m_mean", i, 0),
+                wind_speed_kmh=_daily_value(daily_data, "wind_speed_10m_max", i),
                 weather_code=weather_code,
                 weather_description=WMO_CODES.get(weather_code, "Unknown") if weather_code is not None else None,
             )
